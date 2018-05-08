@@ -18,6 +18,10 @@
     #define MAXDELAY 200000000
 #endif
 
+/*
+ * I do not own any of the following code as it was provided by the Computer
+ * Science Department at the University of Toronto.
+ */
 
 // Defining function to write a message in pieces with a delay
 void write_random_pieces(const char *message, int times);

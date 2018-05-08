@@ -8,6 +8,11 @@
 
 #include "headers/socket.h"
 
+/* 
+ * I do not own any of the following code as it was provided by the Computer
+ * Science Department at the University of Toronto.
+ */
+
 /*
  * Initialize a server address associated with the given port.
  *

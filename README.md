@@ -31,7 +31,7 @@ To clean up the project folder, issue the following command to remove all object
 ## How it Works
 The main design principles are layout out as follows:  
 
-![](images/server_diagram.png)
+![](images/server.png)
 
 When a client connects to the server and requests a job, the server first creates a "Job Manager" then the job itself. The "Job Manager"
 collects all output from the job, formats it, then notifies the server to distribute the output to all the watchers of the job. When a
