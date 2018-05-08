@@ -97,10 +97,10 @@ void log_client_command(char *buf, int clientfd)
  */
 void log_startup()
 {
-    serverlog = fopen("../serverlog/server.log", "ab");
+    serverlog = fopen("server.log", "ab");
     if (serverlog == NULL)
     {
-        fprintf(stderr, "[SERVER] server.log error\n");
+        fprintf(stderr, "[SERVER] server.log error!\n");
         exit(1);
     }
 
