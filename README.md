@@ -1,7 +1,7 @@
 # jobserver
 
 ## Abstract
-Host a TCP server with multi-client support that invokes jobs upon the clients request. The server maintains a log of its activation and de-activation time, all of the commands it receives and all the job output it sends. Clients can run a variety of commands, watch or kill active jobs or even request a new job for the server to run. The 
+Host a TCP server with multi-client support that invokes jobs upon the clients request. The server maintains a log of its activation and de-activation time, all of the commands it receives and all the job output it sends. Clients can run a variety of commands, watch or kill active jobs or even request a new job for the server to run.
 
 ## How to Use
 Navigate to the projects directory, then issue the following command to build the executables needed to run the jobserver.
