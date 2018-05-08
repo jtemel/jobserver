@@ -29,7 +29,7 @@ To clean up the project folder, issue the following command to remove all object
 ![](images/make_clean.png)
 
 ## How it Works
-The main design principles are layout out as follows:  
+Main Design Structure:  
 
 ![](images/server.png)
 
@@ -40,7 +40,7 @@ job ends or is killed, the "Job Manager" collects (or kills and collects) the ex
 ## Features Currently Supported
 ### Jobs
 #### randprint [arg]
-Writes "A stitch in time" arg times to stdout in random sized pieces, or a usage message
+Writes "A stitch in time" arg times to stdout in random sized pieces on random intervals of time ("packets"), or a usage message
 to stderr.
 
 ### Commands
@@ -48,11 +48,11 @@ The client can request any of the following commands from the server:
 #### jobs
 Receive a list of all the active jobs currently running on the server, or an appropriate message if no jobs are currently running.
 #### watch [pid]
-Recieve all the output of the job specified by pid. The number of clients watching a job is not bounded. If the client is already watching the job, remove the client from the watching status.
+Recieve all the output of the job specified by pid. The number of clients watching a job is not bounded. If the client is already watching the job, removing the client from watching status.
 #### kill [pid]
-Kill the job specified by pid, notifing all of the clients watching the job's termination.
+Kill the job specified by pid, notifing all of the clients watching of the job's termination.
 #### run [jobname] [args](0 or more)
-Begin running the job "jobname" with the given args, and become the first client watching the job. The number of jobs that the server can maintain is boudned by 32, so requests that exceed this number will be declined.
+Begin running the job "jobname" with the given args, and become the first client watching the job. The number of jobs that the server can maintain is bounded by 32, so requests that exceed this number will be declined.
 #### exit
 Close your connection with the server and exit. (Server will still be active)
 
