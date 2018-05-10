@@ -167,6 +167,7 @@ int run_job(char *buf, client_t *client, joblist_t *joblist)
         if (build_job(fd[0], client, joblist) < 0) /* Job couldnt be created */
         {
             kill(SIGINT, mpid); /* Avoid stray processes */
+            wait(NULL);
             return -1;
         }
     }
@@ -321,8 +322,6 @@ int forward_job_output(int stdoutfd, int stderrfd, int writefd, int jpid)
                     while ((nwl = find_network_newline(buf, inbuf)) > 0) 
                     {
                         buf[nwl - 2] = '\0';
-
-                        printf("BUF: %s\n", buf);
 
                         /* Sent output formatted to server */
                         if (write_job(prepend, jpid, -1, buf, writefd) < 0)

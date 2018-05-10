@@ -12,6 +12,8 @@
 
 #define COMMAND "%s\r\n"
 #define CONNECTION_CLOSED "[CLIENT] Connection closed\n"
+#define SERVER_SHUTDOWN "[SERVER] Shutting down"
+#define CON_CLOSED "[CLIENT] Connection closed\r\n"
 
 /*
  * Read the output from the server, stripping network newlines prior to 
@@ -41,6 +43,11 @@ int read_server(int readfd)
         {
             buf[nwl - 2] = '\0';
             printf("%s\n", buf);
+
+            if (strcmp(buf, SERVER_SHUTDOWN) == 0)
+            {
+                return 1;
+            }
             inbuf -= nwl;
             memmove(buf, buf + nwl, inbuf);
         }
@@ -73,21 +80,21 @@ int read_command(int writefd)
    char buf[BUFSIZE + 1];
    int num_read = read(STDIN_FILENO, buf, BUFSIZE);
 
-	if (num_read < 0)
-	{
-		perror("[CLIENT] read");	
-		return 1;
-	}		
+    if (num_read < 0)
+    {
+        perror("[CLIENT] read");    
+        return 1;
+    }        
 
-	if (num_read == 0)
-		return 0;
+    if (num_read == 0)
+        return 0;
 
-	buf[num_read - 1] = '\0';
+    buf[num_read - 1] = '\0';
 
-	int validate = validate_command(buf);
+    int validate = validate_command(buf);
 
-	if (validate == 5) //Exit
-		return 1;
+    if (validate == 5) //Exit
+        return 1;
 
     char msg[BUFSIZE + 4];
     if (sprintf(msg, COMMAND, buf) < 0)
@@ -96,29 +103,47 @@ int read_command(int writefd)
         return 1;   
     }
 
-	if (write(writefd, msg, strlen(msg)) < 0)
-	{
-		perror("[CLIENT] write");
-		return 1;
-	}
-	return 0;
+    if (write(writefd, msg, strlen(msg)) < 0)
+    {
+        perror("[CLIENT] write");
+        return 1;
+    }
+    return 0;
 
 }
 
 int main(int argc, char *argv[])
 {
-    if (argc != 2)
+    char addr[BUFSIZE+1];
+    if (argc > 2)
     {
         fprintf(stderr, "Usage:\n\tjobclient hostname\n");
         exit(1);
     }
+    
+    if (argc == 2)
+    {
+        if (strcpy(addr, argv[1]) < 0)
+        {
+            perror("[CLIENT]");
+            exit(1);
+        }      
+    }
+    else
+    {
+        if (strcpy(addr, "127.0.0.1") < 0)
+        {
+            perror("[CLIENT]");
+            exit(1);
+        } //Default addr
+    }
 
     // Set-up socket
-    int soc = connect_to_server(PORT, argv[1]);
+    int soc = connect_to_server(PORT, addr);
 
     int closed = 0;
 
-    // Prepare to lsiten to both STDIN and the socket
+    // Prepare to listen to both STDIN and the socket
     fd_set all_fds, listen_fds;
     FD_ZERO(&all_fds);
     FD_SET(soc, &all_fds);

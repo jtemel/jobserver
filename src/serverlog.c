@@ -268,6 +268,40 @@ int write_job(char *format, pid_t jobpid, int exit_status,
 }
 
 /*
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ * @return
+ *      -1:         Error occured
+ */
+int write_to_watchers(char *buf, watchlist_t *watchlist)
+{
+    char msg[BUFSIZE+1];
+    if (sprintf(msg, "%s\r\n", buf) < 0)
+        return -1;
+
+    watcher_t *watcher = watchlist->head;
+    int skip = 0;
+    while (watcher)
+    {
+        /* Client closed its connection */
+        if ((skip = write(watcher->client->clientfd, msg, strlen(msg))) < 0)
+        {   
+            watcher_t *temp = watcher;
+            watcher = watcher->next;
+            remove_watcher(temp, watchlist);
+        }
+        if (skip >= 0)
+            watcher = watcher->next;
+    }
+    return 0;
+}
+
+/*
  * Write to the client the list of valid commands that the server can take. This
  * should be called if the client sends the command "commands".
  *
@@ -296,4 +330,17 @@ int write_commands(int clientfd)
         }
     }
     return 0;
+}
+
+/*
+ * Notify the connected clients of the server's shutdown, prompting them to
+ * terminate.
+ */
+void notify_clients_shutdown(clientlist_t *clientlist)
+{
+    /* Errors are void since the program is terminating */
+    for(client_t *client = clientlist->head; client; client = client->next)
+    {
+        write(client->clientfd, SERVER_SHUTDOWN, strlen(SERVER_SHUTDOWN));
+    }
 }

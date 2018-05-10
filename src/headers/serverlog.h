@@ -24,10 +24,11 @@
 #define JOB_NOT_FOUND "[SERVER] Job %d not found\r\n"
 #define INVALID_COMMAND "[SERVER] Invalid command: %s\r\n"
 #define CLIENT_CMD "[CLIENT %d] %s\r\n"
-#define JOB_LIST "[SERVER (%d)]%s\r\n" 
+#define JOB_LIST "[SERVER]%s\r\n" 
 
 #define SERVER_ACT "[SERVER] Activated: %s\n"
 #define SERVER_DEACT "[SERVER] De-activated: %s\n"
+#define CON_CLOSED "[CLIENT] Connection closed\r\n"
 
 #define VALID_CMDS_S 5
 
@@ -50,6 +51,7 @@ void log_shutdown();
 int write_client(char *format, char *buf, int clientfd);
 int write_job(char *format, pid_t jobpid, pid_t exit_status, 
                 char *buf, int writefd);
+int write_to_watchers(char *buf, watchlist_t *watchlist);
 int write_commands(int clientfd);
-
+void notify_clients_shutdown(clientlist_t* clientlist);
 #endif /* SERVERLOG_H */

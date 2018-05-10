@@ -3,8 +3,10 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/types.h>
+#include <sys/wait.h>
 
 #include "headers/serverdata.h"
+#include "headers/serverlog.h"
 
 /*******************************************************************************
  *                    Communication Structures and Helpers                     *
@@ -168,6 +170,7 @@ void free_client(client_t *client)
  */
 void clear_clients(clientlist_t *clientlist)
 {
+    notify_clients_shutdown(clientlist);
     client_t *temp = clientlist->head;
 
     if (temp == NULL)
@@ -288,7 +291,8 @@ int add_job(pid_t pid, pid_t mpid, int jobpipe, client_t *client,
 int remove_job(pid_t pid, joblist_t *joblist)
 {
     job_t *job = find_job(pid, joblist);
-    
+    int stat;
+    waitpid(job->mpid, &stat, 0);
     if (job == NULL)
     {
         return -1;

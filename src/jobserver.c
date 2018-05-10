@@ -76,7 +76,7 @@ void setup_client(int listenfd, clientlist_t *clientlist)
  *        -1:               jobs pipe has closed, thus job is finished
  *        0:                job output was read and forwarded successfully
  */
-int read_write_job(job_t* job, joblist_t *joblist)
+int read_write_job(job_t *job, joblist_t *joblist)
 {
     char buf[BUFSIZE+1];
     char *after = buf;
@@ -95,8 +95,7 @@ int read_write_job(job_t* job, joblist_t *joblist)
         while ((nwl = find_network_newline(buf, inbuf)) > 0) 
         {
             buf[nwl-2] = '\0'; /* Remove \r\n */
-
-            printf("%s", buf);
+            write_to_watchers(buf, job->watchlist);
             inbuf -= nwl;
             memmove(buf, buf+nwl, inbuf);
         }
@@ -286,20 +285,20 @@ int main(void)
            */
         while (job)
         {
-            int job_closed = 0;
-
+            int job_closed = abs(waitpid(job->mpid, NULL, WNOHANG));
+            
             /* Read from the job only if there is something to read */
             if (FD_ISSET(job->jobpipe, &listen_fds))
             {
                 /* Read from the client and determine if the connection closed*/
                 if ((job_closed = read_write_job(job, joblist)) < 0)
                 {
-                    //job_t *job_ended = job;
+                    job_t *job_ended = job;
                     job = job->next;
-                    /* TODO Remove the job */
+                    remove_job(job_ended->pid, joblist);
                 }
             }
-            if (job_closed == 0)
+            if (job_closed >= 0)
             {
                 job = job->next;
             }
@@ -311,6 +310,7 @@ int main(void)
     close(listenfd);
     clear_clients(clientlist);
     clear_jobs(joblist);
+    wait(NULL); // Wait for job's to clear up
     log_shutdown();
     return 0;
 }
