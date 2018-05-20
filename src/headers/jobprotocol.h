@@ -20,7 +20,7 @@ int watch_job(char *buf, client_t *client, joblist_t *joblist);
 
 /* Building and running the job (used by "run" command) */
 int arg_count(char *buf);
-int build_job(int readfd, client_t *client, joblist_t *joblist);
+int build_job(int readfd, pid_t mpid, client_t *client, joblist_t *joblist);
 int forward_job_output(int stdoutfd, int stderrfd, int writefd, int jpid);
 int fill_argv(char *buf, char ***, int size);
 void generate_job_and_manager(int writefd, char *argv[]);

@@ -15,14 +15,24 @@
 #include "headers/jobcommands.h"
 #include "headers/serverlog.h"
 
+/* Separator for the server.log to differentiate between startups */
+char *separator = "=======================================================";
 
+/* The servers log */
+static FILE *serverlog;
+
+/*******************************************************************************
+ *                          Display Valid Commands                             *
+ ******************************************************************************/
 /*
  * The list of valid commands the server accepts. This is formatted to be sent
  * to a client who requests the valid commands.
  */
 char *cmdheads[] =
 {
+    "[SERVER] List of Valid Commands:",
     "[SERVER] jobs:",
+    "[SERVER] joblist:",
     "[SERVER] run [jobname] [args]:",
     "[SERVER] watch [pid]:",
     "[SERVER] kill [pid]:",
@@ -34,7 +44,9 @@ char *cmdheads[] =
  */
 char *cmdmsg[] =
 {
+    "\r\n",
     "list the currently running jobs\r\n",
+    "list the jobs that can be run\r\n",
     "run a new job \"jobname\" with arguments (0+ args)\r\n",
     "watch the job specified by pid's output\r\n",
     "kill the job specified by pid\r\n",
@@ -44,13 +56,40 @@ char *cmdmsg[] =
 /*
  * Indent amount between the cmdhead[i] and cmdmsg[i], to ensure corect format.
  */
-int indent[] = { 18, 2, 11, 12, 18 };
+int cmdindent[] = { 0, 18, 15, 2, 11, 12, 18 };
 
-/* Separator for the server.log to differentiate between startups */
-char *separator = "=======================================================";
 
-/* The servers log */
-static FILE *serverlog;
+/*******************************************************************************
+ *                           Display Valid Jobs                                *
+ ******************************************************************************/
+/*
+ * The list of valid jobs the server can run. This is formatted to be sent
+ * to a client who requests the valid joblist.
+ */
+char *jobheads[] =
+{
+    "[SERVER] List of available jobs:",
+    "[SERVER] randprint [n > 0]:\n",
+    "[SERVER] pfact [n > 0]:\n",
+    "[SERVER] print_ptree [PID]:\n"
+};
+
+/*
+ * Appended to the jobheads, in respected order.
+ */
+char *jobmsg[] =
+{
+    "\r\n",
+    "print \"A stitch in time\" n times, in randomly sized pieces\r\n",
+    "use sieve factorization to find exactly two primes that factor n\r\n",
+    "print the /proc/ tree rooted at PID\r\n"
+};
+
+/*
+ * Indent amount between the jobhead[i] and jobmsg[i], to ensure corect format.
+ */
+int jobindent[] = { 0, 9, 9, 9 };
+
 
 /*******************************************************************************
  *                                Server Log                                   *
@@ -97,10 +136,10 @@ void log_client_command(char *buf, int clientfd)
  */
 void log_startup()
 {
-    serverlog = fopen("server.log", "ab");
+    serverlog = fopen("../server.log", "ab");
     if (serverlog == NULL)
     {
-        fprintf(stderr, "[SERVER] server.log error!\n");
+        fprintf(stderr, "[SERVER] server.log error\n");
         exit(1);
     }
 
@@ -138,7 +177,7 @@ void log_shutdown()
         return;
     }
 
-    fprintf(stdout, "\n%s", buf);
+    fprintf(stdout, "%s", buf);
     fprintf(stdout, "%s\n", separator);
     fprintf(serverlog, "%s", buf);
     fprintf(serverlog, "%s\n", separator);
@@ -176,9 +215,16 @@ void log_shutdown()
 int write_client(char *format, char *buf, int clientfd)
 {
     char msg[BUFSIZE + 1];
-    if (format != NULL)
+    if (format != NULL && buf != NULL)
     {
         if (sprintf(msg, format, buf) < 0)
+        {
+            return 1;
+        }
+    }
+    else if (buf == NULL)
+    {
+        if (sprintf(msg, format, clientfd) < 0)
         {
             return 1;
         }
@@ -237,52 +283,47 @@ int write_job(char *format, pid_t jobpid, int exit_status,
     if (exit_status >= 0)
     {
         if (sprintf(msg, format, jobpid, exit_status) < 0)
-        {
             return 1;
-        }
-
-        log_message(msg);
 
         if (write(writefd, msg, strlen(msg)) != strlen(msg))
-        {
             return -1;
-        }
+
         return 0;
     }
     if (buf == NULL)
-    {
         buf = "";
-    }
-    if (sprintf(msg, format, jobpid, buf) < 0)
-    {
-        return 1;
-    }
 
-    log_message(msg);
+    if (sprintf(msg, format, jobpid, buf) < 0)
+        return 1;
+
 
     if (write(writefd, msg, strlen(msg)) != strlen(msg))
-    {
         return -1;
-    }
+
     return 0;
 }
 
 /*
- *
- *
- *
- *
- *
- *
+ * Distribute the output of the job to all the watchers. If the output could
+ * not be written to a client, remove the client from the watchlist. This occurs
+ * when the client closes their connection to the server.
+ * 
+ * @param buf
+ *      the output of the job to distribute
+ * @param watchlist
+ *      the list of clients that are watching the job to sent output too
  *
  * @return
- *      -1:         Error occured
+ *      -1:         error occured and the output can not be sent
+ *      0:          the output was sent to the jobs (or was attempted)
  */
 int write_to_watchers(char *buf, watchlist_t *watchlist)
 {
     char msg[BUFSIZE+1];
     if (sprintf(msg, "%s\r\n", buf) < 0)
         return -1;
+
+    log_message(msg);
 
     watcher_t *watcher = watchlist->head;
     int skip = 0;
@@ -302,11 +343,14 @@ int write_to_watchers(char *buf, watchlist_t *watchlist)
 }
 
 /*
- * Write to the client the list of valid commands that the server can take. This
- * should be called if the client sends the command "commands".
+ * Write to the client the list of valid commands or valid jobs that the server
+ * can take. This should be called if the client sends the command "commands" or 
+ * "joblist".
  *
  * @param clientfd
  *        the clients fd to write too
+ * @param type
+ *         0 for command list, else for job list
  *
  * All messages written will be logged to the servers stdout and server.log.
  *
@@ -314,20 +358,32 @@ int write_to_watchers(char *buf, watchlist_t *watchlist)
  *        -1:           the clients has closed its socket
  *        0:            the messages were written to the client successfully
  */
-int write_commands(int clientfd)
+int write_setmsg(int clientfd, int type)
 {
-    for (int i = 0; i < VALID_CMDS_S; i++)
+    char **head = cmdheads;
+    int *indent = cmdindent;
+    char **msg = cmdmsg;
+    int bound = VALID_CMDS_S;
+
+    if (type > 0)
+    {
+        head = jobheads;
+        indent = jobindent;
+        msg = jobmsg;
+        bound = JOB_TOTAL;
+    }
+
+    for (int i = 0; i < bound; i++)
     {
         char cmd[BUFSIZE + 1];
-        if (sprintf(cmd, "%s%*s%s", cmdheads[i], indent[i], "", cmdmsg[i]) < 0)
-        {
+        if (sprintf(cmd, "%s%*s%s", head[i], indent[i], "", msg[i]) < 0)
             continue;
-        }
+        
         log_message(cmd);
+
         if (write(clientfd, cmd, strlen(cmd)) != strlen(cmd))
-        {
             return -1;
-        }
+       
     }
     return 0;
 }

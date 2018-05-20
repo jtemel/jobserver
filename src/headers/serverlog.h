@@ -30,7 +30,8 @@
 #define SERVER_DEACT "[SERVER] De-activated: %s\n"
 #define CON_CLOSED "[CLIENT] Connection closed\r\n"
 
-#define VALID_CMDS_S 5
+#define VALID_CMDS_S 7
+#define JOB_TOTAL 4
 
 /* List of valid commands */
 extern char *cmdheads[VALID_CMDS_S];
@@ -52,6 +53,6 @@ int write_client(char *format, char *buf, int clientfd);
 int write_job(char *format, pid_t jobpid, pid_t exit_status, 
                 char *buf, int writefd);
 int write_to_watchers(char *buf, watchlist_t *watchlist);
-int write_commands(int clientfd);
+int write_setmsg(int clientfd, int type);
 void notify_clients_shutdown(clientlist_t* clientlist);
 #endif /* SERVERLOG_H */

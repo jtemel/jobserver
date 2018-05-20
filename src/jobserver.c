@@ -162,9 +162,9 @@ int read_client(client_t *client, joblist_t *joblist)
                     return -1;
                 }
             }
-            else if (validate == 0) /* Client requested command list */
+            else if (validate == 0 || validate == 6) /* Client requested command list */
             {
-                if (write_commands(client->clientfd) < 0)
+                if (write_setmsg(client->clientfd, validate) < 0)
                 {
                     return -1;
                 }    
@@ -295,6 +295,8 @@ int main(void)
                 {
                     job_t *job_ended = job;
                     job = job->next;
+                    int stat;
+                    wait(&stat);
                     remove_job(job_ended->pid, joblist);
                 }
             }

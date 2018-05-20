@@ -136,8 +136,7 @@ void close_client(client_t *client, clientlist_t *clientlist)
         }
     }
     
-    /* TODO Log this */
-    printf("[CLIENT %d] Connection closed\n", client->clientfd);
+    write_client("[CLIENT %d] Connection closed\r\n", NULL, client->clientfd);
 
     close_fd(client->clientfd, clientlist->fdset);
     free_client(client);
@@ -170,6 +169,7 @@ void free_client(client_t *client)
  */
 void clear_clients(clientlist_t *clientlist)
 {
+    log_message("\n[SERVER] Closing connection to all active clients\r\n");
     notify_clients_shutdown(clientlist);
     client_t *temp = clientlist->head;
 
@@ -387,14 +387,18 @@ int jobcmp(job_t *job1, job_t *job2)
 }
 
 /*
- * Clean up and close the given job, free any mallocs, clear all watchers,
- * close the jobpipe and dereference all pointers.
+ * Clean up and close the given job, stop zombie process, free any mallocs, 
+ * clear all watchers, close the jobpipe and dereference all pointers.
  *
  * @param job
  *        the job to clean up and close
  */
 void free_job(job_t *job)
 {
+    int stat;
+    wait(&stat);
+    WEXITSTATUS(stat);
+
     job->next = NULL;
     job->prev = NULL;
 
@@ -422,6 +426,7 @@ void free_job(job_t *job)
  */
 void clear_jobs(joblist_t *joblist)
 {
+    log_message("[SERVER] Clearing all active jobs\r\n");
     job_t *temp = joblist->head;
 
     if (temp == NULL)
@@ -567,14 +572,10 @@ watcher_t *find_watcher(client_t *client, watchlist_t *watchlist)
     {
         return NULL;
     }
-    if (watchlist->size == 1) /* One client watching */
-    {
-        return watchlist->head;
-    }
     watcher_t *watcher = watchlist->head;
     while (watcher) /* Locate client */
     {
-        if (watcher->client == client) /* TODO CHANGE BACK TO CLIENTFD IF FAILS*/
+        if (watcher->client == client)
         {
             return watcher;
         }

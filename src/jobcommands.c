@@ -15,7 +15,8 @@ const char *client_cmds[] =
     "^run (.+)( [0-9]*)*$",
     "^kill ([0-9]+)$",
     "^watch ([0-9]+)$",
-    "^exit$"
+    "^exit$",
+    "^joblist$"
 };
 
 /*

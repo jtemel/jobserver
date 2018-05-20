@@ -43,10 +43,23 @@ job ends or is killed, the "Job Manager" collects (or kills and collects) the ex
 Writes "A stitch in time" arg times to stdout in random sized pieces on random intervals of time ("packets"), or a usage message
 to stderr.
 
+#### pfact [arg]
+Using the Sieve algorithm, each prime less than the root of [arg] is filtered until the program either determines:  
+1) arg is the product of exactly two primes  
+2) arg is NOT the product of exactly two primes  
+3) arg itself is prime
+
+#### print_ptree [arg]
+print_ptree explores the /proc/ directory beginning at PID [arg], building and displaying a tree of children processes rooted at [arg]. Each node in the tree contains:  
+1) PID of the process  
+2) the process name  
+
 ### Commands
 The client can request any of the following commands from the server:  
 #### jobs
 Receive a list of all the active jobs currently running on the server, or an appropriate message if no jobs are currently running.
+#### joblist  
+Receive a list of all the possible jobs that the server can run, how to execute them, and what they do.  
 #### watch [pid]
 Recieve all the output of the job specified by pid. The number of clients watching a job is not bounded. If the client is already watching the job, removing the client from watching status.
 #### kill [pid]
@@ -55,8 +68,3 @@ Kill the job specified by pid, notifing all of the clients watching of the job's
 Begin running the job "jobname" with the given args, and become the first client watching the job. The number of jobs that the server can maintain is bounded by 32, so requests that exceed this number will be declined.
 #### exit
 Close your connection with the server and exit. (Server will still be active)
-
-## Future Development
-1. Larger variety of jobs
-2. Interactive jobs
-3. Larger variety of commands

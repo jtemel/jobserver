@@ -6,7 +6,7 @@
 #endif
 
 #ifndef CLIENT_CMDS_S
-	#define CLIENT_CMDS_S 6
+	#define CLIENT_CMDS_S 7
 #endif
 
 /* No lines or paths may exceed the BUFSIZE below */

@@ -25,7 +25,7 @@
  * @param validate
  *        the int value of the command (the index if appears at in the cmds list)
  * @param client
- *        the client who invoked teh command
+ *        the client who invoked the command
  * @param joblist
  *        the list of currently running jobs to add/remove jobs to/from
  *
@@ -55,7 +55,23 @@ int execute_command(char *buf, int validate, client_t *client,
 /*******************************************************************************
 *                                Jobs Command                                  *
 *******************************************************************************/
-
+/*
+ * Prepare a list of the active jobs running on the server and write it to the
+ * client who requested it. If there are no jobs currently running, write the
+ * appropiate message.
+ *
+ * @param clientfd
+ *        the fd of the client who invoked the command
+ * @param joblist
+ *        the list of currently running jobs to parse
+ *
+ * @return
+ *     Note the return value is determined by write_client in serverlog.c
+ *
+ *        -1:           the clients has closed its socket
+ *        0:            the messages were written to the client successfully
+ *        1:            an error occured and the message could not be sent
+ */
 int job(int clientfd, joblist_t *joblist)
 {
     if (joblist->size == 0)
@@ -80,31 +96,84 @@ int job(int clientfd, joblist_t *joblist)
 *                                Kill Command                                  *
 *******************************************************************************/
 
+/*
+ * Locate the job that the client wants to kill and kill it, then notify the
+ * client. If the job doesn't exist, the appropiate message is written instead.
+ *
+ * @param buf
+ *      the char representation of the job's pid to kill
+ * @param clientfd
+ *      the fd of the client who requested the kill
+ * @param joblist
+ *      the list of jobs to find the specific job within
+ *
+ * @return
+ *      -1:         no job was found with the given pid
+ *      0:          the job was killed successfully
+ *
+ */
 int kill_job(char *buf, int clientfd, joblist_t *joblist)
 {
     pid_t jpid;
     if ((jpid = job_exists(buf, clientfd, joblist)) > 1)
     {
         kill(jpid, SIGINT);
+        return 0;
     }
-    return 0;
+    return -1;
 }
 /*******************************************************************************
 *                                Watch Command                                 *
 *******************************************************************************/
 
+/*
+ * Locate the job the client wants to watch and add the client to the list of
+ * watchers. If the client was already watching the job, it will no longer be
+ * watching.
+ *
+ * @param buf
+ *      the pid of the job
+ * @param client
+ *      the client who invoked the command and will be appended as a watcher
+ *      or removed
+ * @param joblist
+ *      the list of jobs to find the job within
+ *
+ * @return
+ *      -1:         no job was found with the given pid
+ *      0:          the job was killed successfully
+ */
 int watch_job(char *buf, client_t *client, joblist_t *joblist)
 {
     pid_t jpid;
     if ((jpid = job_exists(buf, client->clientfd, joblist)) > 1) /* Job exists*/
     {
-        add_watcher(jpid, client, joblist); /* Errors => job not watched */
+        printf("%d\n", add_watcher(jpid, client, joblist)); /* Errors => job not watched */
+        return 0;
     }
-    return 0;
+    return -1;
 }
 
 
-
+/*
+ * Determine if the job exists and is running on the server. If not, write
+ * the appropiate message to teh client.
+ *
+ * @param buf
+ *      the command contatining the pid of the job
+ * @param clientfd
+ *      the fd of the client who invoked the command
+ * @param joblist
+ *      the list of the jobs to scan through
+ *
+ * @return
+ *      Note the return value is determined by write_job in serverlog.c
+ *
+ *        -1:           the write failed
+ *        0:            the messages were written to the client successfully
+ *        1:            an error occured and the message could not be sent
+ *      jpid:           the pid of the job the client requested access too
+ */
 int job_exists(char *buf, int clientfd, joblist_t *joblist)
 {
     char *ptr = strchr(buf, ' ');
@@ -120,10 +189,27 @@ int job_exists(char *buf, int clientfd, joblist_t *joblist)
 /*******************************************************************************
 *                              Run Command                                     *
 *******************************************************************************/
+
+/*
+ * Parse the jobname and args, set-up job manager and pipe and prepare to launch
+ * the job. Validity of the command is checked here.s
+ *
+ * @param buf 
+ *      the command the user requested, to be parsed
+ * @param client
+ *      the client who invoked the command and will be set as the first watcher
+ * @param joblist 
+ *      the list to append the new job too, given it succeeds
+ *
+ * @return
+ *      -1:         an error occurred and the job could not be created
+ *      0:          the job was successfully created and appended
+ *
+ */
 int run_job(char *buf, client_t *client, joblist_t *joblist)
 {
     int size;
-    if ((size = arg_count(buf)) == 1 || joblist->size == MAX_JOBS) 
+    if ((size = arg_count(buf)) == 1 || joblist->size >= MAX_JOBS) 
     {
         return -1;
     }
@@ -164,7 +250,8 @@ int run_job(char *buf, client_t *client, joblist_t *joblist)
     if (mpid > 0)
     {
         close(fd[1]);
-        if (build_job(fd[0], client, joblist) < 0) /* Job couldnt be created */
+        /* Job couldnt be created */
+        if (build_job(fd[0], mpid, client, joblist) < 0) 
         {
             kill(SIGINT, mpid); /* Avoid stray processes */
             wait(NULL);
@@ -182,6 +269,8 @@ int run_job(char *buf, client_t *client, joblist_t *joblist)
  *
  * @param readfd
  *        the read fd of the pipe connecting the job manager and the server
+ * @param mpid
+ *          the pid of the job manager's process
  * @param client
  *        the client who requested the job creation and thus the first watcher
  *         of the jobs output
@@ -194,15 +283,16 @@ int run_job(char *buf, client_t *client, joblist_t *joblist)
  *                    No job will be created as such.
  *        0:          the job was created, appended, and watched successfully
  */
-int build_job(int readfd, client_t *client, joblist_t *joblist)
+int build_job(int readfd, pid_t mpid, client_t *client, joblist_t *joblist)
 {    
     pid_t jpid;
     
-    /* TODO Kill Job manager and exit */
+    /* Avoid stray/zombie process */
     if (read(readfd, &jpid, sizeof(int)) != sizeof(int)
-        || add_job(jpid, getpid(), readfd, client, joblist) < 0)
+        || add_job(jpid, mpid, readfd, client, joblist) < 0)
     {
-        
+        kill(mpid, SIGINT);
+        waitpid(mpid, NULL, 0);
         return -1;
     }
     return 0;
@@ -251,7 +341,8 @@ void generate_job_and_manager(int writefd, char *argv[])
 
         if (write(writefd, &jpid, sizeof(int)) < 0) /*Inform server of jobs pid*/
         {
-            /* TODO Write failed */
+            kill(jpid, SIGINT);
+            exit(-1);
         }    
         forward_job_output(stdoutfd[0], stderrfd[0], writefd, jpid);
     }
@@ -288,6 +379,7 @@ int forward_job_output(int stdoutfd, int stderrfd, int writefd, int jpid)
     int inbuf, nbytes, status;
     int room = BUFSIZE;
     int fd[] = { stdoutfd, stderrfd };
+    int maxfd = stdoutfd > stderrfd ? stdoutfd : stderrfd;    
     int done;
 
     /* Prepare to read both stdout and stderr */
@@ -301,7 +393,7 @@ int forward_job_output(int stdoutfd, int stderrfd, int writefd, int jpid)
     {
         listen_fds = all_fds;
 
-        int nready = select(fd[1], &listen_fds, NULL, NULL, NULL);
+        int nready = select(maxfd, &listen_fds, NULL, NULL, NULL);
 
         if (nready < 0)
         {
@@ -309,6 +401,11 @@ int forward_job_output(int stdoutfd, int stderrfd, int writefd, int jpid)
         }
         for (int i = 0; i < 2; i++) /* Check for both stdout and stderr */
         {
+            memset(buf, 0, sizeof(buf));
+            inbuf = 0;
+            after = buf;
+            nbytes = 0;
+
             prepend = i == 0? JOB_STDOUT : JOB_STDERR;
 
             if (fd[i] > -1 && FD_ISSET(fd[i], &listen_fds))
@@ -322,7 +419,6 @@ int forward_job_output(int stdoutfd, int stderrfd, int writefd, int jpid)
                     while ((nwl = find_network_newline(buf, inbuf)) > 0) 
                     {
                         buf[nwl - 2] = '\0';
-
                         /* Sent output formatted to server */
                         if (write_job(prepend, jpid, -1, buf, writefd) < 0)
                         {
@@ -337,7 +433,7 @@ int forward_job_output(int stdoutfd, int stderrfd, int writefd, int jpid)
             }
         }
     }
-    
+
     if (WIFEXITED(status)) /* Job exited indepenendly */
     {
         int exit_status = WEXITSTATUS(status);
@@ -387,9 +483,7 @@ void execute(int stdoutfd, int stderrfd, char *argv[])
     {
         exit(-1);
     }
-
     execvp(job_exe, argv);
-    perror("Job failed");
     exit(-1);
 }
 
